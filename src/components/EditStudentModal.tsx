@@ -15,6 +15,7 @@ export function EditStudentModal({ isOpen, onClose, onSuccess, student }: EditSt
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [planId, setPlanId] = useState('');
+  const [paymentDueDate, setPaymentDueDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -24,6 +25,7 @@ export function EditStudentModal({ isOpen, onClose, onSuccess, student }: EditSt
       setEmail(student.email || '');
       setPhone(formatPhone(student.phone || ''));
       setPlanId(student.planId ? String(student.planId) : '');
+      setPaymentDueDate(student.paymentDueDate || '');
     }
   }, [student]);
 
@@ -45,7 +47,7 @@ export function EditStudentModal({ isOpen, onClose, onSuccess, student }: EditSt
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          name, email, phone, planId: planId ? parseInt(planId) : null
+          name, email, phone, planId: planId ? parseInt(planId) : null, paymentDueDate: paymentDueDate || null
         })
       });
 
@@ -126,6 +128,16 @@ export function EditStudentModal({ isOpen, onClose, onSuccess, student }: EditSt
             </select>
           </div>
 
+          
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1">Vencimento do Plano</label>
+            <input 
+              type="date" 
+              value={paymentDueDate}
+              onChange={e => setPaymentDueDate(e.target.value)}
+              className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+            />
+          </div>
           <div className="pt-4 mt-2 border-t border-slate-100 flex gap-3 shrink-0">
             <button 
               type="button"

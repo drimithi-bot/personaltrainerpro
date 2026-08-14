@@ -3,7 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { requireAuth, AuthRequest } from "./src/middleware/auth.ts";
 import { db } from "./src/db/index.ts";
-import { users, tenants, studentProfiles } from "./src/db/schema.ts";
+import { users, tenants, studentProfiles, publicProfiles } from "./src/db/schema.ts";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 
@@ -59,6 +59,245 @@ async function startServer() {
     res.json(req.dbUser);
   });
 
+  
+  // Public Profile Routes
+  app.get("/api/public-profile", requireAuth, async (req: AuthRequest, res) => {
+    try {
+      if (!req.dbUser) return res.status(401).json({ error: "Unauthorized" });
+      const tenantId = req.dbUser.tenantId;
+      
+      const profile = await db.select().from(publicProfiles).where(eq(publicProfiles.tenantId, tenantId)).limit(1);
+      
+      if (profile.length === 0) {
+        // Return a default based on user
+        return res.json({
+          slug: req.dbUser.name.toLowerCase().replace(/ /g, '-'),
+          bio: '',
+          location: '',
+          instagram: '',
+          whatsapp: req.dbUser.phone || '',
+          enableBooking: true,
+          bookingStartTime: '07:00',
+          bookingEndTime: '20:00',
+          bookingDays: '1,2,3,4,5'
+        });
+      }
+      
+      res.json(profile[0]);
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.put("/api/public-profile", requireAuth, async (req: AuthRequest, res) => {
+    try {
+      if (!req.dbUser) return res.status(401).json({ error: "Unauthorized" });
+      const tenantId = req.dbUser.tenantId;
+      const { slug, bio, location, instagram, whatsapp, enableBooking, bookingStartTime, bookingEndTime, bookingDays } = req.body;
+      
+      if (!slug) return res.status(400).json({ error: "Slug is required" });
+
+      const existing = await db.select().from(publicProfiles).where(eq(publicProfiles.tenantId, tenantId)).limit(1);
+      
+      if (existing.length === 0) {
+        await db.insert(publicProfiles).values({
+          tenantId,
+          slug,
+          bio,
+          location,
+          instagram,
+          whatsapp,
+          enableBooking: enableBooking !== false,
+          bookingStartTime: bookingStartTime || '07:00',
+          bookingEndTime: bookingEndTime || '20:00',
+          bookingDays: bookingDays || '1,2,3,4,5',
+        });
+      } else {
+        await db.update(publicProfiles).set({
+          slug,
+          bio,
+          location,
+          instagram,
+          whatsapp,
+        }).where(eq(publicProfiles.tenantId, tenantId));
+      }
+      
+      res.json({ message: "Profile updated" });
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  
+  // Public booking availability
+  app.get("/api/p/:slug/availability", async (req, res) => {
+    try {
+      const { slug } = req.params;
+      const { date } = req.query; // YYYY-MM-DD
+      
+      if (!date) {
+        return res.status(400).json({ error: "Date is required" });
+      }
+
+      const profile = await db.select().from(publicProfiles).where(eq(publicProfiles.slug, slug)).limit(1);
+      if (profile.length === 0) {
+        return res.status(404).json({ error: "Profile not found" });
+      }
+
+      const tenantId = profile[0].tenantId;
+      const dayOfWeek = new Date(date + 'T00:00:00Z').getUTCDay();
+
+      // Check if day is allowed
+      const allowedDays = (profile[0].bookingDays || '1,2,3,4,5').split(',').map(Number);
+      if (!allowedDays.includes(dayOfWeek) || profile[0].enableBooking === false) {
+        return res.json([]);
+      }
+
+      const blocked = await db.select().from(blockedTimes).where(
+        and(eq(blockedTimes.tenantId, tenantId), eq(blockedTimes.dayOfWeek, dayOfWeek))
+      );
+
+      const existingAppointments = await db.select().from(appointments).where(
+        and(eq(appointments.tenantId, tenantId), eq(appointments.date, date as string))
+      );
+
+      // Generate 1-hour slots from bookingStartTime to bookingEndTime
+      const startHour = parseInt(profile[0].bookingStartTime?.split(':')[0] || '7');
+      const endHour = parseInt(profile[0].bookingEndTime?.split(':')[0] || '20');
+      const slots = [];
+      for (let hour = startHour; hour <= endHour; hour++) {
+        const hStr = hour.toString().padStart(2, '0') + ':00';
+        slots.push(hStr);
+      }
+
+      // Helper to check if a slot overlaps with a time range
+      const isOverlapping = (slotTime, start, end) => {
+        const slotHour = parseInt(slotTime.split(':')[0]);
+        const slotEnd = (slotHour + 1).toString().padStart(2, '0') + ':00';
+        return (slotTime < end && slotEnd > start);
+      };
+
+      const availableSlots = slots.filter(slot => {
+        // Check blocked times
+        for (const b of blocked) {
+          if (isOverlapping(slot, b.startTime, b.endTime)) return false;
+        }
+        // Check appointments (assume 1 hour duration for simplicity)
+        const slotEnd = (parseInt(slot.split(':')[0]) + 1).toString().padStart(2, '0') + ':00';
+        for (const app of existingAppointments) {
+          // If appointment overlaps with this slot
+          if (app.status !== 'CANCELLED' && 
+              ((slot >= app.startTime && slot < app.endTime) || 
+               (app.startTime >= slot && app.startTime < slotEnd))) {
+            return false;
+          }
+        }
+        return true;
+      });
+
+      res.json(availableSlots);
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Public booking submit
+  app.post("/api/p/:slug/book", async (req, res) => {
+    try {
+      const { slug } = req.params;
+      const { date, time, name, email, phone, notes } = req.body;
+
+      if (!date || !time || !name || !email) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const profile = await db.select().from(publicProfiles).where(eq(publicProfiles.slug, slug)).limit(1);
+      if (profile.length === 0) {
+        return res.status(404).json({ error: "Profile not found" });
+      }
+
+      const tenantId = profile[0].tenantId;
+
+      // Create a lead user if it doesn't exist
+      let user = await db.select().from(users).where(
+        and(eq(users.tenantId, tenantId), eq(users.email, email))
+      ).limit(1);
+
+      let userId;
+      if (user.length === 0) {
+        const pseudoUid = `lead_${crypto.randomUUID()}`;
+        const newUser = await db.insert(users).values({
+          uid: pseudoUid,
+          email,
+          name,
+          phone: phone || '',
+          role: "ALUNO", // Treat as ALUNO for CRM purposes
+          tenantId,
+        }).returning();
+        userId = newUser[0].id;
+        
+        await db.insert(studentProfiles).values({
+          userId,
+          tenantId,
+        });
+      } else {
+        userId = user[0].id;
+      }
+
+      // Calculate endTime (assume 1 hour duration)
+      const endHour = (parseInt(time.split(':')[0]) + 1).toString().padStart(2, '0');
+      const endTime = `${endHour}:00`;
+
+      await db.insert(appointments).values({
+        tenantId,
+        studentId: userId,
+        date,
+        startTime: time,
+        endTime,
+        notes: `Consulta via Página Pública${notes ? ': ' + notes : ''}`,
+        status: 'SCHEDULED'
+      });
+
+      res.json({ message: "Consulta agendada com sucesso!" });
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/p/:slug", async (req, res) => {
+    try {
+      const { slug } = req.params;
+      const profile = await db.select({
+        profile: publicProfiles,
+        user: {
+          name: users.name,
+          photoUrl: users.photoUrl
+        }
+      }).from(publicProfiles)
+        .innerJoin(tenants, eq(tenants.id, publicProfiles.tenantId))
+        .innerJoin(users, and(eq(users.tenantId, tenants.id), eq(users.role, 'PERSONAL')))
+        .where(eq(publicProfiles.slug, slug))
+        .limit(1);
+      
+      if (profile.length === 0) {
+        return res.status(404).json({ error: "Profile not found" });
+      }
+      
+      res.json({
+        name: profile[0].user.name,
+        photoUrl: profile[0].user.photoUrl,
+        ...profile[0].profile
+      });
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get("/api/students", requireAuth, async (req: AuthRequest, res) => {
     try {
       if (!req.dbUser) {
@@ -74,6 +313,7 @@ async function startServer() {
           name: users.name,
           phone: users.phone,
           planId: studentProfiles.planId,
+          paymentDueDate: studentProfiles.paymentDueDate,
         })
         .from(users)
         .leftJoin(studentProfiles, eq(studentProfiles.userId, users.id))
@@ -95,7 +335,7 @@ async function startServer() {
         return res.status(403).json({ error: "Only PERSONAL can add students" });
       }
 
-      const { name, email, phone, birthDate, gender, profession, emergencyContact, planId } = req.body;
+      const { name, email, phone, birthDate, gender, profession, emergencyContact, planId, paymentDueDate } = req.body;
 
       if (!name || !email) {
         return res.status(400).json({ error: "Name and email are required" });
@@ -140,7 +380,7 @@ async function startServer() {
       }
 
       const studentId = parseInt(req.params.id);
-      const { name, email, phone, planId } = req.body;
+      const { name, email, phone, planId, paymentDueDate } = req.body;
 
       // Verify student belongs to this tenant
       const existingStudent = await db.select().from(users).where(and(eq(users.id, studentId), eq(users.tenantId, tenantId)));
@@ -160,12 +400,14 @@ async function startServer() {
       if (existingProfile.length > 0) {
         await db.update(studentProfiles).set({
           planId: planId !== undefined ? planId : existingProfile[0].planId,
+          paymentDueDate: paymentDueDate !== undefined ? paymentDueDate : existingProfile[0].paymentDueDate,
         }).where(eq(studentProfiles.userId, studentId));
       } else {
         await db.insert(studentProfiles).values({
           userId: studentId,
           tenantId,
           planId,
+          paymentDueDate,
         });
       }
 
@@ -372,6 +614,188 @@ async function startServer() {
       
       res.json({ message: "Exercise removed from workout" });
     } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  
+  // Appointments
+  app.get("/api/appointments", requireAuth, async (req, res) => {
+    try {
+      if (!req.dbUser) return res.status(401).json({ error: "Unauthorized" });
+      const { appointments } = await import("./src/db/schema.ts");
+      
+      const query = db.select().from(appointments)
+        .where(eq(appointments.tenantId, req.dbUser.tenantId));
+        
+      const results = await query;
+      res.json(results);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/appointments", requireAuth, async (req, res) => {
+    try {
+      if (!req.dbUser) return res.status(401).json({ error: "Unauthorized" });
+      if (req.dbUser.role !== "PERSONAL" && req.dbUser.role !== "SUPER_ADMIN") {
+        return res.status(403).json({ error: "Only PERSONAL can create appointments" });
+      }
+      
+      const { studentId, date, startTime, endTime, notes } = req.body;
+      const { appointments } = await import("./src/db/schema.ts");
+      
+      // Check for overlapping appointments
+      const existing = await db.select().from(appointments)
+        .where(and(
+          eq(appointments.tenantId, req.dbUser.tenantId),
+          eq(appointments.date, date)
+        ));
+      
+      const hasOverlap = existing.some(app => {
+        return (startTime < app.endTime && endTime > app.startTime) && app.status !== 'CANCELLED';
+      });
+      
+      if (hasOverlap) {
+        return res.status(400).json({ error: "Já existe um agendamento neste horário." });
+      }
+
+      // Check for recurring blocked times
+      const { blockedTimes } = await import("./src/db/schema.ts");
+      const apptDate = new Date(date);
+      // Ensure we get the correct day of week considering UTC vs local. date is YYYY-MM-DD. 
+      // Using UTC to avoid timezone shifts.
+      const dayOfWeek = new Date(date + "T00:00:00Z").getUTCDay();
+      
+      const existingBlocks = await db.select().from(blockedTimes)
+        .where(and(
+          eq(blockedTimes.tenantId, req.dbUser.tenantId),
+          eq(blockedTimes.dayOfWeek, dayOfWeek)
+        ));
+        
+      const isBlocked = existingBlocks.some(block => {
+        return (startTime < block.endTime && endTime > block.startTime);
+      });
+      
+      if (isBlocked) {
+        return res.status(400).json({ error: "Este horário cai em um período bloqueado pelas suas configurações." });
+      }
+      
+      const newAppointment = await db.insert(appointments).values({
+        tenantId: req.dbUser.tenantId,
+        studentId,
+        date,
+        startTime,
+        endTime,
+        notes
+      }).returning();
+      
+      res.json(newAppointment[0]);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/appointments/:id", requireAuth, async (req, res) => {
+    try {
+      if (!req.dbUser) return res.status(401).json({ error: "Unauthorized" });
+      if (req.dbUser.role !== "PERSONAL" && req.dbUser.role !== "SUPER_ADMIN") {
+        return res.status(403).json({ error: "Only PERSONAL can delete appointments" });
+      }
+      const id = parseInt(req.params.id, 10);
+      const { appointments } = await import("./src/db/schema.ts");
+      
+      await db.delete(appointments)
+        .where(and(
+          eq(appointments.id, id),
+          eq(appointments.tenantId, req.dbUser.tenantId)
+        ));
+        
+      res.json({ message: "Appointment deleted" });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  
+  // Blocked Times
+  app.get("/api/settings/blocked-times", requireAuth, async (req, res) => {
+    try {
+      if (!req.dbUser) return res.status(401).json({ error: "Unauthorized" });
+      const { blockedTimes } = await import("./src/db/schema.ts");
+      
+      const results = await db.select().from(blockedTimes)
+        .where(eq(blockedTimes.tenantId, req.dbUser.tenantId));
+        
+      res.json(results);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/settings/blocked-times", requireAuth, async (req, res) => {
+    try {
+      if (!req.dbUser) return res.status(401).json({ error: "Unauthorized" });
+      if (req.dbUser.role !== "PERSONAL" && req.dbUser.role !== "SUPER_ADMIN") {
+        return res.status(403).json({ error: "Only PERSONAL can configure blocked times" });
+      }
+      
+      const { dayOfWeek, startTime, endTime, reason } = req.body;
+      const { blockedTimes } = await import("./src/db/schema.ts");
+      
+      // Basic overlap check inside blocked times just for sanity
+      const existing = await db.select().from(blockedTimes)
+        .where(and(
+          eq(blockedTimes.tenantId, req.dbUser.tenantId),
+          eq(blockedTimes.dayOfWeek, dayOfWeek)
+        ));
+        
+      const hasOverlap = existing.some(block => {
+        return (startTime < block.endTime && endTime > block.startTime);
+      });
+      
+      if (hasOverlap) {
+        return res.status(400).json({ error: "Já existe um bloqueio que sobrepõe este horário." });
+      }
+      
+      const newBlock = await db.insert(blockedTimes).values({
+        tenantId: req.dbUser.tenantId,
+        dayOfWeek,
+        startTime,
+        endTime,
+        reason
+      }).returning();
+      
+      res.json(newBlock[0]);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/settings/blocked-times/:id", requireAuth, async (req, res) => {
+    try {
+      if (!req.dbUser) return res.status(401).json({ error: "Unauthorized" });
+      if (req.dbUser.role !== "PERSONAL" && req.dbUser.role !== "SUPER_ADMIN") {
+        return res.status(403).json({ error: "Only PERSONAL can delete blocked times" });
+      }
+      
+      const id = parseInt(req.params.id, 10);
+      const { blockedTimes } = await import("./src/db/schema.ts");
+      
+      await db.delete(blockedTimes)
+        .where(and(
+          eq(blockedTimes.id, id),
+          eq(blockedTimes.tenantId, req.dbUser.tenantId)
+        ));
+        
+      res.json({ message: "Blocked time deleted" });
+    } catch (error) {
       console.error(error);
       res.status(500).json({ error: error.message });
     }

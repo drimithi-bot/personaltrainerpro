@@ -18,6 +18,7 @@ import { SettingsView } from './components/SettingsView.tsx';
 import { ViewWorkoutModal } from './components/ViewWorkoutModal.tsx';
 import { PricingView } from './components/PricingView.tsx';
 import { TodaysSessionsView } from './components/TodaysSessionsView.tsx';
+import { CalendarView } from './components/CalendarView.tsx';
 import { StudentDashboardView } from './components/StudentDashboardView.tsx';
 
 function DashboardRouter() {
@@ -54,7 +55,7 @@ function DashboardRouter() {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   };
   
-  const [dashboardData, setDashboardData] = useState<{students: any[], workouts: any[]}>({ students: [], workouts: [] });
+  const [dashboardData, setDashboardData] = useState<{students: any[], workouts: any[], appointments: any[]}>({ students: [], workouts: [], appointments: [] });
   const [selectedDashboardWorkout, setSelectedDashboardWorkout] = useState<any>(null);
 
   const fetchDashboardData = async () => {
@@ -64,16 +65,18 @@ function DashboardRouter() {
       const token = await auth.currentUser?.getIdToken();
       if (!token) return;
       
-      const [resStudents, resWorkouts] = await Promise.all([
+      const [resStudents, resWorkouts, resAppointments] = await Promise.all([
         fetch('/api/students', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/workouts', { headers: { Authorization: `Bearer ${token}` } })
+        fetch('/api/workouts', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/appointments', { headers: { Authorization: `Bearer ${token}` } })
       ]);
       
-      if (resStudents.ok && resWorkouts.ok) {
+      if (resStudents.ok && resWorkouts.ok && resAppointments.ok) {
         const students = await resStudents.json();
         const workouts = await resWorkouts.json();
+        const appointments = await resAppointments.json();
         setStudentsCount(students.length);
-        setDashboardData({ students, workouts });
+        setDashboardData({ students, workouts, appointments });
       }
     } catch (e) {
       console.error('Failed to fetch dashboard data', e);
@@ -163,15 +166,7 @@ function DashboardRouter() {
 
   const renderContent = () => {
     if (activeView === 'calendar') {
-      return (
-        <div className="flex-1 bg-white rounded-3xl shadow-sm border border-slate-100 p-6 md:p-8 flex flex-col h-full overflow-hidden">
-          <h2 className="text-xl font-bold text-slate-900 mb-6 shrink-0">Agenda Completa</h2>
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-2 border-2 border-dashed border-slate-200 rounded-2xl">
-            <Calendar className="w-16 h-16 text-slate-200" />
-            <p>Agenda completa em desenvolvimento...</p>
-          </div>
-        </div>
-      );
+      return <CalendarView />;
     }
     
     if (activeView === 'exercises') {
@@ -209,13 +204,13 @@ function DashboardRouter() {
 
     return (
       <div className="flex flex-col lg:flex-row gap-6 md:gap-10 flex-1 overflow-hidden min-h-[500px]">
-        <section className="flex-[2] flex flex-col bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-blue-500/50 p-6 md:p-8 h-full overflow-hidden">
-          <div className="flex justify-between items-center mb-6 shrink-0">
+        <section className="flex-[2] flex flex-col bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-blue-500/50 p-5 md:p-6 h-full overflow-hidden">
+          <div className="flex justify-between items-center mb-4 shrink-0">
             <h2 className="text-xl font-bold text-slate-900 dark:text-white">Agenda do Dia</h2>
             <button onClick={() => setActiveView('calendar')} className="text-indigo-600 dark:text-indigo-400 font-semibold text-sm hover:underline">Ver agenda completa</button>
           </div>
           
-          <div className="relative mb-6 shrink-0">
+          <div className="relative mb-4 shrink-0">
             <Search className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
@@ -271,8 +266,8 @@ function DashboardRouter() {
         </section>
 
         <section className="flex-1 flex flex-col gap-6 h-full overflow-hidden">
-          <div className="bg-slate-900 text-white p-6 md:p-8 rounded-3xl shrink-0">
-            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+          <div className="bg-slate-900 text-white p-5 md:p-6 rounded-3xl shrink-0">
+            <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
               <AlertCircle className="w-5 h-5 text-indigo-400" /> Alertas Críticos
             </h3>
             <div className="flex flex-col gap-4">
@@ -280,7 +275,7 @@ function DashboardRouter() {
             </div>
           </div>
 
-          <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-100 dark:border-blue-500/50 rounded-3xl p-6 md:p-8 shadow-sm flex flex-col overflow-hidden">
+          <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-100 dark:border-blue-500/50 rounded-3xl p-5 md:p-6 shadow-sm flex flex-col overflow-hidden">
             <h3 className="font-bold text-slate-900 dark:text-white mb-4 shrink-0">Ações Rápidas</h3>
             <div className="flex-1 flex flex-col justify-center gap-4">
               <button 
@@ -340,10 +335,10 @@ function DashboardRouter() {
         </div>
       </nav>
 
-      <main className="flex-1 flex flex-col p-6 md:p-10 overflow-hidden overflow-y-auto dark:bg-slate-900 dark:text-white transition-colors">
-        <header className="flex justify-between items-end mb-10 shrink-0">
+      <main className="flex-1 flex flex-col p-4 md:p-6 lg:p-8 overflow-hidden overflow-y-auto dark:bg-slate-900 dark:text-white transition-colors">
+        <header className="flex justify-between items-end mb-6 shrink-0">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Bom dia, {dbUser.name.split(' ')[0]}!</h1>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Bom dia, {dbUser.name.split(' ')[0]}!</h1>
             <p className="text-slate-500 dark:text-slate-400 mt-1">Bem-vindo ao seu painel de controle</p>
           </div>
           <div className="flex gap-4 items-center">
@@ -364,40 +359,40 @@ function DashboardRouter() {
           </div>
         </header>
 
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10 shrink-0">
+        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 shrink-0">
           <div 
             onClick={() => setActiveView('students')}
-            className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-blue-500/50 cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors group"
+            className="bg-white dark:bg-slate-900 px-5 py-4 rounded-2xl shadow-sm border border-slate-100 dark:border-blue-500/50 cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors group"
           >
             <p className="text-slate-500 dark:text-slate-400 text-sm font-medium group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Alunos Ativos</p>
             <div className="flex items-end gap-2 mt-2">
-              <span className="text-3xl font-bold dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{studentsCount}</span>
+              <span className="text-2xl font-bold dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{studentsCount}</span>
               <span className="text-slate-400 text-sm mb-1">Total</span>
             </div>
           </div>
           <div 
             onClick={() => setActiveView('todays_sessions')}
-            className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-blue-500/50 cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors group"
+            className="bg-white dark:bg-slate-900 px-5 py-4 rounded-2xl shadow-sm border border-slate-100 dark:border-blue-500/50 cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors group"
           >
             <p className="text-slate-500 dark:text-slate-400 text-sm font-medium group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Sessões Hoje</p>
             <div className="flex items-end gap-2 mt-2">
-              <span className="text-3xl font-bold dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                {dashboardData.students.filter(s => dashboardData.workouts.some(w => w.studentId === s.id)).length}
+              <span className="text-2xl font-bold dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                {dashboardData.appointments.filter(a => a.date === new Date().toISOString().split('T')[0]).length}
               </span>
               <span className="text-slate-400 text-sm mb-1">Agendadas</span>
             </div>
           </div>
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-blue-500/50">
+          <div className="bg-white dark:bg-slate-900 px-5 py-4 rounded-2xl shadow-sm border border-slate-100 dark:border-blue-500/50">
             <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Faturamento</p>
             <div className="flex items-end gap-2 mt-2">
-              <span className="text-3xl font-bold dark:text-white">R$ 0</span>
+              <span className="text-2xl font-bold dark:text-white">R$ 0</span>
               <span className="text-slate-400 text-sm mb-1">Este mês</span>
             </div>
           </div>
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-blue-500/50">
+          <div className="bg-white dark:bg-slate-900 px-5 py-4 rounded-2xl shadow-sm border border-slate-100 dark:border-blue-500/50">
             <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Taxa de Frequência</p>
             <div className="flex items-end gap-2 mt-2">
-              <span className="text-3xl font-bold dark:text-white">0%</span>
+              <span className="text-2xl font-bold dark:text-white">0%</span>
               <span className="text-slate-400 text-sm mb-1">Média</span>
             </div>
           </div>

@@ -30,6 +30,7 @@ export const studentProfiles = pgTable('student_profiles', {
   objectives: text('objectives'),
   restrictions: text('restrictions'),
   planId: integer('plan_id'),
+  paymentDueDate: text('payment_due_date'),
   active: boolean('active').default(true),
   createdAt: timestamp('created_at').defaultNow(),
 });
@@ -66,11 +67,24 @@ export const workoutExercises = pgTable('workout_exercises', {
   orderIndex: integer('order_index').notNull().default(0),
 });
 
+export const appointments = pgTable('appointments', {
+  id: serial('id').primaryKey(),
+  tenantId: integer('tenant_id').references(() => tenants.id).notNull(),
+  studentId: integer('student_id').references(() => users.id).notNull(),
+  date: text('date').notNull(), // YYYY-MM-DD
+  startTime: text('start_time').notNull(), // HH:MM
+  endTime: text('end_time').notNull(), // HH:MM
+  notes: text('notes'),
+  status: text('status').notNull().default('SCHEDULED'), // SCHEDULED, COMPLETED, CANCELLED
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
 // Relationships
 export const tenantsRelations = relations(tenants, ({ many }) => ({
   users: many(users),
   exercises: many(exercises),
   workouts: many(workouts),
+  appointments: many(appointments),
 }));
 
 export const usersRelations = relations(users, ({ one, many }) => ({
@@ -83,6 +97,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
     references: [studentProfiles.userId],
   }),
   workouts: many(workouts),
+  appointments: many(appointments),
 }));
 
 export const workoutsRelations = relations(workouts, ({ one, many }) => ({
@@ -103,3 +118,47 @@ export const workoutExercisesRelations = relations(workoutExercises, ({ one }) =
     references: [exercises.id],
   }),
 }));
+
+export const appointmentsRelations = relations(appointments, ({ one }) => ({
+  student: one(users, {
+    fields: [appointments.studentId],
+    references: [users.id],
+  }),
+  tenant: one(tenants, {
+    fields: [appointments.tenantId],
+    references: [tenants.id],
+  })
+}));
+
+
+export const blockedTimes = pgTable('blocked_times', {
+  id: serial('id').primaryKey(),
+  tenantId: integer('tenant_id').references(() => tenants.id).notNull(),
+  dayOfWeek: integer('day_of_week').notNull(), // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  startTime: text('start_time').notNull(), // HH:MM
+  endTime: text('end_time').notNull(), // HH:MM
+  reason: text('reason'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const blockedTimesRelations = relations(blockedTimes, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [blockedTimes.tenantId],
+    references: [tenants.id],
+  })
+}));
+
+export const publicProfiles = pgTable('public_profiles', {
+  id: serial('id').primaryKey(),
+  tenantId: integer('tenant_id').references(() => tenants.id).notNull().unique(),
+  slug: text('slug').notNull().unique(),
+  bio: text('bio'),
+  location: text('location'),
+  instagram: text('instagram'),
+  whatsapp: text('whatsapp'),
+  enableBooking: boolean('enable_booking').default(true),
+  bookingStartTime: text('booking_start_time').default('07:00'),
+  bookingEndTime: text('booking_end_time').default('20:00'),
+  bookingDays: text('booking_days').default('1,2,3,4,5'),
+  createdAt: timestamp('created_at').defaultNow(),
+});

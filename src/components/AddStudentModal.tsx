@@ -16,6 +16,7 @@ export function AddStudentModal({ isOpen, onClose, onSuccess }: AddStudentModalP
   const [birthDate, setBirthDate] = useState('');
   const [gender, setGender] = useState('');
   const [planId, setPlanId] = useState('');
+  const [paymentDueDate, setPaymentDueDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -37,7 +38,7 @@ export function AddStudentModal({ isOpen, onClose, onSuccess }: AddStudentModalP
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          name, email, phone, birthDate, gender, planId: planId ? parseInt(planId) : null
+          name, email, phone, birthDate, gender, planId: planId ? parseInt(planId) : null, paymentDueDate: paymentDueDate || null
         })
       });
 
@@ -54,6 +55,7 @@ export function AddStudentModal({ isOpen, onClose, onSuccess }: AddStudentModalP
       setBirthDate('');
       setGender('');
       setPlanId('');
+      setPaymentDueDate('');
     } catch (err: any) {
       setError(err.message);
     } finally {

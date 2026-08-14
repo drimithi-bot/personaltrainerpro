@@ -62,7 +62,7 @@ export function WorkoutDetailsView({ workout, onBack, onWorkoutUpdated }: Workou
 
   return (
     <div className="flex-1 bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-blue-500/50 flex flex-col h-full overflow-hidden">
-      <div className="p-6 md:p-8 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 shrink-0">
+      <div className="px-5 py-4 md:px-6 md:py-5 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 shrink-0">
         <div className="flex items-center gap-4">
           <button 
             onClick={onBack}
@@ -95,7 +95,7 @@ export function WorkoutDetailsView({ workout, onBack, onWorkoutUpdated }: Workou
         )}
       </div>
       
-      <div className="flex-1 p-6 md:p-8 overflow-y-auto">
+      <div className="flex-1 p-5 md:p-6 overflow-y-auto">
         {loading ? (
           <div className="flex justify-center items-center h-full text-slate-500 dark:text-slate-400">Carregando...</div>
         ) : workoutExercises.length === 0 ? (

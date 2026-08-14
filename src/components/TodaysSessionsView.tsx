@@ -15,25 +15,31 @@ export function TodaysSessionsView({ onViewWorkouts }: { onViewWorkouts?: (stude
         const token = await auth.currentUser?.getIdToken();
         if (!token) return;
 
-        const [resStudents, resWorkouts] = await Promise.all([
+        const [resStudents, resWorkouts, resApps] = await Promise.all([
           fetch('/api/students', { headers: { Authorization: `Bearer ${token}` } }),
-          fetch('/api/workouts', { headers: { Authorization: `Bearer ${token}` } })
+          fetch('/api/workouts', { headers: { Authorization: `Bearer ${token}` } }),
+          fetch('/api/appointments', { headers: { Authorization: `Bearer ${token}` } })
         ]);
 
-        if (resStudents.ok && resWorkouts.ok) {
+        if (resStudents.ok && resWorkouts.ok && resApps.ok) {
           const students = await resStudents.json();
           const workouts = await resWorkouts.json();
+          const appointments = await resApps.json();
           
-          // Filter students who have at least one workout assigned to them
-          const todaysSessions = students.filter((s: any) => 
-            workouts.some((w: any) => w.studentId === s.id)
-          ).map((s: any) => {
-            const studentWorkouts = workouts.filter((w: any) => w.studentId === s.id);
+          const today = new Date().toISOString().split('T')[0];
+          
+          const todaysAppointments = appointments.filter((a: any) => a.date === today)
+            .sort((a: any, b: any) => a.startTime.localeCompare(b.startTime));
+          
+          const todaysSessions = todaysAppointments.map((app: any) => {
+            const student = students.find((s: any) => s.id === app.studentId);
+            const studentWorkouts = workouts.filter((w: any) => w.studentId === app.studentId);
             return {
-              ...s,
+              ...student,
+              appointment: app,
               workouts: studentWorkouts
             };
-          });
+          }).filter((s: any) => s.id); // Filter out any mismatched appointments
           
           setSessions(todaysSessions);
         }
@@ -49,14 +55,14 @@ export function TodaysSessionsView({ onViewWorkouts }: { onViewWorkouts?: (stude
 
   return (
     <div className="flex-1 bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-blue-500/50 flex flex-col h-full overflow-hidden transition-colors">
-      <div className="p-6 md:p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center shrink-0">
+      <div className="px-5 py-4 md:px-6 md:py-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center shrink-0">
         <div>
           <h2 className="text-xl font-bold text-slate-900 dark:text-white">Sessões de Hoje</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Alunos com treinos agendados para hoje</p>
         </div>
       </div>
       
-      <div className="flex-1 p-6 md:p-8 overflow-y-auto">
+      <div className="flex-1 p-5 md:p-6 overflow-y-auto">
         {loading ? (
           <div className="flex justify-center items-center h-full text-slate-500 dark:text-slate-400">Carregando...</div>
         ) : sessions.length === 0 ? (
@@ -74,12 +80,12 @@ export function TodaysSessionsView({ onViewWorkouts }: { onViewWorkouts?: (stude
               >
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400 font-bold flex items-center justify-center text-lg shrink-0 group-hover:bg-indigo-200 dark:group-hover:bg-indigo-900/60 transition-colors">
-                    {session.name.substring(0, 2).toUpperCase()}
+                    {session.name?.substring(0, 2).toUpperCase() || 'AL'}
                   </div>
                   <div>
-                    <h3 className="font-bold text-slate-900 dark:text-white">{session.name}</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> Hoje
+                    <h3 className="font-bold text-slate-900 dark:text-white">{session.name || 'Desconhecido'}</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1 font-medium">
+                      <Clock className="w-4 h-4 text-indigo-500" /> {session.appointment.startTime} - {session.appointment.endTime}
                     </p>
                   </div>
                 </div>

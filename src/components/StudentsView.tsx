@@ -42,7 +42,7 @@ export function StudentsView({ onPreviewStudent, onViewWorkouts }: StudentsViewP
 
   return (
     <div className="flex-1 bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-blue-500/50 flex flex-col h-full overflow-hidden transition-colors">
-      <div className="p-6 md:p-8 border-b border-slate-100 dark:border-slate-800 dark:border-blue-500/50 flex justify-between items-center shrink-0">
+      <div className="px-5 py-4 md:px-6 md:py-5 border-b border-slate-100 dark:border-slate-800 dark:border-blue-500/50 flex justify-between items-center shrink-0">
         <div>
           <h2 className="text-xl font-bold text-slate-900 dark:text-white">Alunos</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Gerencie seus alunos e matrículas</p>
@@ -56,7 +56,7 @@ export function StudentsView({ onPreviewStudent, onViewWorkouts }: StudentsViewP
         </button>
       </div>
       
-      <div className="flex-1 p-6 md:p-8 overflow-y-auto">
+      <div className="flex-1 p-5 md:p-6 overflow-y-auto">
         {loading ? (
           <div className="flex justify-center items-center h-full text-slate-500 dark:text-slate-400">Carregando...</div>
         ) : students.length === 0 ? (
@@ -66,7 +66,9 @@ export function StudentsView({ onPreviewStudent, onViewWorkouts }: StudentsViewP
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {students.map(student => (
+            {students.map(student => {
+              const isOverdue = student.paymentDueDate && student.paymentDueDate < new Date().toISOString().split('T')[0];
+              return (
               <div key={student.id} className="border border-slate-200 dark:border-slate-700 p-5 rounded-2xl hover:border-indigo-300 dark:hover:border-indigo-500/50 transition-all bg-slate-50 dark:bg-slate-800 flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400 font-bold flex items-center justify-center text-lg shrink-0">
                   {student.name.substring(0, 2).toUpperCase()}
@@ -75,8 +77,13 @@ export function StudentsView({ onPreviewStudent, onViewWorkouts }: StudentsViewP
                   <h3 className="font-bold text-slate-900 dark:text-white dark:text-slate-100 truncate">{student.name}</h3>
                   <p className="text-sm text-slate-500 dark:text-slate-400 truncate">{student.email}</p>
                   {student.planId && (
-                    <span className="inline-block mt-1 text-xs font-bold bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded-full">
+                    <span className="inline-block mt-1 mr-2 text-xs font-bold bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded-full">
                       {DEFAULT_PLANS.find(p => p.id === student.planId)?.frequency || 'Plano Personalizado'}
+                    </span>
+                  )}
+                  {isOverdue && (
+                    <span className="inline-flex items-center gap-1 mt-1 text-xs font-bold bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-full">
+                      <AlertCircle className="w-3 h-3" /> Pagamento Atrasado
                     </span>
                   )}
                 </div>
@@ -108,7 +115,8 @@ export function StudentsView({ onPreviewStudent, onViewWorkouts }: StudentsViewP
                   )}
                 </div>
               </div>
-            ))}
+            );
+            })}
           </div>
         )}
       </div>
