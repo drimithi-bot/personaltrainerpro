@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Dumbbell, Instagram, MapPin, CheckCircle2, MessageCircle, Star, Calendar as CalendarIcon, Clock, ArrowRight } from 'lucide-react';
 import { DEFAULT_PLANS } from '../lib/constants.ts';
+import { formatPhone } from '../lib/utils.ts';
 
 export function PublicTrainerProfileView({ username }: { username: string }) {
   const [profile, setProfile] = useState<any>(null);
@@ -299,7 +300,7 @@ export function PublicTrainerProfileView({ username }: { username: string }) {
                     />
                     <input 
                       type="tel" placeholder="WhatsApp"
-                      value={bookingForm.phone} onChange={e => setBookingForm({...bookingForm, phone: e.target.value})}
+                      value={bookingForm.phone} onChange={e => setBookingForm({...bookingForm, phone: formatPhone(e.target.value)})}
                       className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
                     />
                   </div>
@@ -328,26 +329,32 @@ export function PublicTrainerProfileView({ username }: { username: string }) {
 
       )}
         {/* Pricing/CTA */}
-        <h2 className="text-2xl font-bold mb-6 text-center">Planos de Consultoria</h2>
-        <div className="grid md:grid-cols-2 gap-6 mb-12">
-          {DEFAULT_PLANS.slice(0, 2).map((plan, i) => (
-            <div key={i} className={`bg-white rounded-3xl p-8 shadow-sm border ${i === 1 ? 'border-indigo-500 relative' : 'border-slate-100'}`}>
-              {i === 1 && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-indigo-500 text-white px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wide">
+        <h2 className="text-2xl font-bold mb-6 text-center">Planos de Treinos</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-12 w-full max-w-7xl mx-auto">
+          { (profile?.plans && profile.plans.length > 0 ? profile.plans : DEFAULT_PLANS).map((plan: any) => (
+            <div key={plan.id} className={`relative bg-white dark:bg-slate-900 rounded-2xl p-6 border-2 flex flex-col ${plan.popular ? 'border-indigo-500 shadow-md' : 'border-slate-100 dark:border-slate-800'}`}>
+              {plan.popular && (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-500 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider whitespace-nowrap shadow-sm">
                   Mais Popular
                 </div>
               )}
-              <h3 className="text-xl font-bold text-slate-900 mb-2">{plan.frequency}</h3>
-              <p className="text-slate-500 text-sm mb-6 h-10">{plan.description}</p>
-              <div className="mb-6">
-                <span className="text-3xl font-bold text-slate-900">{plan.price}</span>
+              
+              <div className="text-center mb-4 mt-2">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">{plan.frequency}</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 h-10 line-clamp-2">{plan.description}</p>
               </div>
+              
+              <div className="text-center mb-6">
+                <span className="text-2xl font-bold text-slate-900 dark:text-white">{plan.price}</span>
+                <span className="text-slate-500 dark:text-slate-400 text-sm">/mês</span>
+              </div>
+              
               <button 
                 onClick={handleWhatsapp}
-                className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors ${i === 1 ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-900'}`}
+                className={`w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors mt-auto ${plan.popular ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-900 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-white'}`}
               >
-                <MessageCircle className="w-5 h-5" />
-                Quero este plano
+                <MessageCircle className="w-4 h-4" />
+                Assinar
               </button>
             </div>
           ))}

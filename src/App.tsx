@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './components/AuthProvider.tsx';
-import { LogIn, UserPlus, Dumbbell, LayoutDashboard, Users, Calendar, Settings, LogOut, AlertCircle, Search, Activity, BookOpen, DollarSign, Sun, Moon } from 'lucide-react';
+import { LogIn, UserPlus, Dumbbell, LayoutDashboard, Users, Calendar, Settings, LogOut, AlertCircle, Search, Activity, BookOpen, DollarSign, Sun, Moon, Bell, CheckCircle } from 'lucide-react';
 import { formatPhone } from './lib/utils.ts';
 import { AddStudentModal } from './components/AddStudentModal.tsx';
 import { CreateWorkoutModal } from './components/CreateWorkoutModal.tsx';
@@ -31,6 +31,70 @@ function DashboardRouter() {
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
   const [isCreateWorkoutOpen, setIsCreateWorkoutOpen] = useState(false);
   const [activeView, setActiveView] = useState('dashboard');
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  const fetchNotifications = async () => {
+    try {
+      const { auth } = await import('./lib/firebase.ts');
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) return;
+      const res = await fetch('/api/notifications', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setNotifications(await res.json());
+      }
+    } catch (e) {
+      console.error('Failed to fetch notifications', e);
+    }
+  };
+
+
+  const confirmBooking = async (id: number) => {
+    try {
+      const { auth } = await import('./lib/firebase.ts');
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) return;
+      const res = await fetch(`/api/notifications/${id}/confirm`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true, message: n.message + ' (Confirmado)' } : n));
+        fetchDashboardData();
+      }
+    } catch (e) {
+      console.error('Failed to confirm booking', e);
+    }
+  };
+
+  const markNotificationRead = async (id: number) => {
+    try {
+      const { auth } = await import('./lib/firebase.ts');
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) return;
+      const res = await fetch(`/api/notifications/${id}/read`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+      }
+    } catch (e) {
+      console.error('Failed to mark notification read', e);
+    }
+  };
+
+  useEffect(() => {
+    if (dbUser?.role === 'PERSONAL') {
+      fetchNotifications();
+      // Poll every minute
+      const interval = setInterval(fetchNotifications, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [dbUser]);
+
   const [studentsCount, setStudentsCount] = useState(0);
   
   const [simulatedStudent, setSimulatedStudent] = useState<any>(null);
@@ -342,6 +406,71 @@ function DashboardRouter() {
             <p className="text-slate-500 dark:text-slate-400 mt-1">Bem-vindo ao seu painel de controle</p>
           </div>
           <div className="flex gap-4 items-center">
+            {/* Notifications */}
+            <div className="relative">
+              <button 
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="relative p-2 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <Bell className="w-6 h-6" />
+                {notifications.filter(n => !n.read).length > 0 && (
+                  <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-slate-50 dark:border-slate-950"></span>
+                )}
+              </button>
+              
+              {showNotifications && (
+                <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-lg rounded-2xl overflow-hidden z-50">
+                  <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
+                    <h3 className="font-bold text-slate-900 dark:text-white">Notificações</h3>
+                    <span className="text-xs bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300 px-2 py-0.5 rounded-full font-bold">
+                      {notifications.filter(n => !n.read).length} novas
+                    </span>
+                  </div>
+                  <div className="max-h-96 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <div className="p-6 text-center text-slate-500 dark:text-slate-400 text-sm">
+                        Nenhuma notificação por enquanto.
+                      </div>
+                    ) : (
+                      notifications.map(notif => (
+                        <div 
+                          key={notif.id} 
+                          className={`p-4 border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex gap-3 ${notif.read ? 'opacity-60' : 'bg-indigo-50/30 dark:bg-indigo-900/10'}`}
+                        >
+                          <div className={`w-2 h-2 mt-1.5 rounded-full shrink-0 ${notif.read ? 'bg-transparent' : 'bg-indigo-500'}`}></div>
+                          <div className="flex-1">
+                            <p className="text-sm font-bold text-slate-900 dark:text-white">{notif.title}</p>
+                            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{notif.message}</p>
+                            <p className="text-[10px] text-slate-400 mt-2">
+                              {new Date(notif.createdAt).toLocaleString('pt-BR')}
+                            </p>
+                          </div>
+                          {!notif.read && (
+                            <div className="flex flex-col gap-2 shrink-0 self-start">
+                              {notif.type === 'NEW_BOOKING' && (
+                                <button 
+                                  onClick={() => confirmBooking(notif.id)}
+                                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center justify-center whitespace-nowrap"
+                                >
+                                  Confirmar
+                                </button>
+                              )}
+                              <button 
+                                onClick={() => markNotificationRead(notif.id)}
+                                className="text-slate-500 hover:text-indigo-700 text-xs px-2 py-1 rounded hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors"
+                                title="Marcar como lido"
+                              >
+                                {notif.type === 'NEW_BOOKING' ? 'Dispensar' : <CheckCircle className="w-4 h-4 mx-auto" />}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
             <a 
               href={`/p/${dbUser.name.toLowerCase().replace(/ /g, '-')}`} 
               target="_blank" 

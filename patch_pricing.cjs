@@ -1,25 +1,74 @@
 const fs = require('fs');
 let code = fs.readFileSync('src/components/PricingView.tsx', 'utf8');
 
-// Reduce card padding
-code = code.replace('rounded-3xl p-5 border-2', 'rounded-2xl p-4 border-2');
+code = code.replace(
+  "import { DEFAULT_PLANS } from '../lib/constants.ts';",
+  "import { DEFAULT_PLANS } from '../lib/constants.ts';\nimport { useAuth } from './AuthProvider.tsx';"
+);
 
-// Reduce header margin inside card
-code = code.replace('text-center mb-4 mt-2', 'text-center mb-2 mt-1');
+code = code.replace(
+  "export function PricingView() {",
+  `export function PricingView() {
+  const { user } = useAuth();
+  const [loading, setLoading] = React.useState(true);`
+);
 
-// Reduce description height
-code = code.replace('text-xs text-slate-500 dark:text-slate-400 mt-1 h-8', 'text-xs text-slate-500 dark:text-slate-400 mt-1 h-6 line-clamp-2');
+const fetchCode = `
+  React.useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        if (!user) return;
+        const { auth } = await import('../lib/firebase.ts');
+        const token = await auth.currentUser?.getIdToken();
+        const res = await fetch('/api/plans', {
+          headers: { Authorization: \`Bearer \${token}\` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.length > 0) {
+            setPlans(data);
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPlans();
+  }, [user]);
+`;
 
-// Reduce price margin
-code = code.replace('text-center mb-4', 'text-center mb-2');
+code = code.replace(
+  "const handleSavePlan = (updatedPlan: any) => {",
+  fetchCode + "\n  const handleSavePlan = async (updatedPlan: any) => {"
+);
 
-// Reduce list gap and margin
-code = code.replace('flex flex-col gap-2 mb-4 text-xs text-slate-600 flex-1', 'flex flex-col gap-1.5 mb-3 text-[11px] md:text-xs text-slate-600 flex-1');
+const saveLogic = `
+    const newPlans = plans.map(p => p.id === updatedPlan.id ? updatedPlan : p);
+    setPlans(newPlans);
+    
+    try {
+      const { auth } = await import('../lib/firebase.ts');
+      const token = await auth.currentUser?.getIdToken();
+      await fetch('/api/plans', {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: \`Bearer \${token}\`
+        },
+        body: JSON.stringify({ plans: newPlans })
+      });
+    } catch (err) {
+      console.error('Failed to save plans to server', err);
+    }
+`;
 
-// Reduce button padding
-code = code.replace('w-full py-2 rounded-xl', 'w-full py-1.5 rounded-xl');
-
-// Container padding
-code = code.replace('flex-1 p-5 md:p-6 overflow-y-auto', 'flex-1 p-4 overflow-y-auto');
+code = code.replace(
+  `    setPlans(current => current.map(p => 
+      p.id === updatedPlan.id ? updatedPlan : p
+    ));`,
+  saveLogic
+);
 
 fs.writeFileSync('src/components/PricingView.tsx', code);

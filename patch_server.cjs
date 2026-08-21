@@ -1,43 +1,20 @@
 const fs = require('fs');
-let code = fs.readFileSync('server.ts', 'utf8');
 
-// 1. In GET /api/public-profile
-code = code.replace(
-  "bookingEndTime: '20:00'",
-  "bookingEndTime: '20:00',\n          bookingDays: '1,2,3,4,5'"
+let serverCode = fs.readFileSync('server.ts', 'utf8');
+
+serverCode = serverCode.replace(
+  'import { users, tenants, studentProfiles, publicProfiles, notifications, appointments, blockedTimes, plans, studentSchedules } from "./src/db/schema.ts";',
+  'import { users, tenants, studentProfiles, publicProfiles, notifications, appointments, blockedTimes, plans, studentSchedules, workouts, workoutExercises } from "./src/db/schema.ts";'
 );
 
-// 2. In PUT /api/public-profile
-code = code.replace(
-  "bookingEndTime } = req.body;",
-  "bookingEndTime, bookingDays } = req.body;"
+serverCode = serverCode.replace(
+  'import { eq, and, desc } from "drizzle-orm";',
+  'import { eq, and, desc, inArray } from "drizzle-orm";'
 );
 
-code = code.replace(
-  "bookingEndTime: bookingEndTime || '20:00',",
-  "bookingEndTime: bookingEndTime || '20:00',\n          bookingDays: bookingDays || '1,2,3,4,5',"
+serverCode = serverCode.replace(
+  'const { workouts, workoutExercises } = await import("./src/db/schema.ts");\n      const { inArray } = await import("drizzle-orm");',
+  ''
 );
 
-// 3. In GET /api/p/:slug/availability
-// The user might be getting no slots because profile.enableBooking is explicitly false or null. 
-// Wait, if enableBooking is null, profile[0].enableBooking !== false will be true. 
-// But what if it's "0" or something? No, it's boolean.
-// We also need to check the selected dayOfWeek against bookingDays.
-
-const oldAvail = `      const dayOfWeek = new Date(date + 'T00:00:00Z').getUTCDay();
-
-      const blocked = await db.select().from(blockedTimes).where(`;
-
-const newAvail = `      const dayOfWeek = new Date(date + 'T00:00:00Z').getUTCDay();
-
-      // Check if day is allowed
-      const allowedDays = (profile[0].bookingDays || '1,2,3,4,5').split(',').map(Number);
-      if (!allowedDays.includes(dayOfWeek) || profile[0].enableBooking === false) {
-        return res.json([]);
-      }
-
-      const blocked = await db.select().from(blockedTimes).where(`;
-
-code = code.replace(oldAvail, newAvail);
-
-fs.writeFileSync('server.ts', code);
+fs.writeFileSync('server.ts', serverCode);

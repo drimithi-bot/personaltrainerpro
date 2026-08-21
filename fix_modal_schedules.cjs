@@ -1,0 +1,10 @@
+const fs = require('fs');
+
+let addCode = fs.readFileSync('src/components/AddStudentModal.tsx', 'utf8');
+addCode = addCode.replace(/      const res = await fetch\('\/api\/students', \{\s+method: 'POST',\s+headers: \{\s+'Content-Type': 'application\/json',\s+'Authorization': `Bearer \$\{token\}`\s+\},\s+body: JSON\.stringify\(\{ name, email, phone, birthDate, gender, planId: planId \? parseInt\(planId\) : null, paymentDueDate, schedules \}\)\s+\}\);\s+\/\/\s+method: 'POST',\s+headers: \{\s+'Content-Type': 'application\/json',\s+'Authorization': `Bearer \$\{token\}`\s+\},\s+\/\* updated body \*\//m, "      const res = await fetch('/api/students', {\n        method: 'POST',\n        headers: {\n          'Content-Type': 'application/json',\n          'Authorization': `Bearer ${token}`\n        },\n        body: JSON.stringify({ name, email, phone, birthDate, gender, planId: planId ? parseInt(planId) : null, paymentDueDate, schedules })\n      });\n");
+fs.writeFileSync('src/components/AddStudentModal.tsx', addCode);
+
+let editCode = fs.readFileSync('src/components/EditStudentModal.tsx', 'utf8');
+editCode = editCode.replace(/      const res = await fetch\(`\/api\/students\/\$\{student\.id\}`, \{\s+method: 'PUT',\s+headers: \{\s+'Content-Type': 'application\/json',\s+'Authorization': `Bearer \$\{token\}`\s+\},\s+body: JSON\.stringify\(\{ name, email, phone, planId: planId \? parseInt\(planId\) : null, paymentDueDate, schedules \}\)\s+\}\);\s+\/\/\s+method: 'PUT',\s+headers: \{\s+'Content-Type': 'application\/json',\s+'Authorization': `Bearer \$\{token\}`\s+\},\s+\/\* updated body \*\//m, "      const res = await fetch(`/api/students/${student.id}`, {\n        method: 'PUT',\n        headers: {\n          'Content-Type': 'application/json',\n          'Authorization': `Bearer ${token}`\n        },\n        body: JSON.stringify({ name, email, phone, planId: planId ? parseInt(planId) : null, paymentDueDate, schedules })\n      });\n");
+fs.writeFileSync('src/components/EditStudentModal.tsx', editCode);
+

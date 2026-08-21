@@ -2,16 +2,60 @@ import React, { useState } from 'react';
 import { DollarSign, Check, Edit2 } from 'lucide-react';
 import { EditPlanModal } from './EditPlanModal.tsx';
 import { DEFAULT_PLANS } from '../lib/constants.ts';
+import { useAuth } from './AuthProvider.tsx';
 
 export function PricingView() {
+  const { user } = useAuth();
+  const [loading, setLoading] = React.useState(true);
   const [plans, setPlans] = useState(DEFAULT_PLANS);
 
   const [editingPlan, setEditingPlan] = useState<any>(null);
 
-  const handleSavePlan = (updatedPlan: any) => {
-    setPlans(current => current.map(p => 
-      p.id === updatedPlan.id ? updatedPlan : p
-    ));
+  
+  React.useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        if (!user) return;
+        const { auth } = await import('../lib/firebase.ts');
+        const token = await auth.currentUser?.getIdToken();
+        const res = await fetch('/api/plans', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.length > 0) {
+            setPlans(data);
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPlans();
+  }, [user]);
+
+  const handleSavePlan = async (updatedPlan: any) => {
+
+    const newPlans = plans.map(p => p.id === updatedPlan.id ? updatedPlan : p);
+    setPlans(newPlans);
+    
+    try {
+      const { auth } = await import('../lib/firebase.ts');
+      const token = await auth.currentUser?.getIdToken();
+      await fetch('/api/plans', {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ plans: newPlans })
+      });
+    } catch (err) {
+      console.error('Failed to save plans to server', err);
+    }
+
   };
 
   return (

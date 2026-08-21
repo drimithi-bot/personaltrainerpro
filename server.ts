@@ -3,8 +3,8 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { requireAuth, AuthRequest } from "./src/middleware/auth.ts";
 import { db } from "./src/db/index.ts";
-import { users, tenants, studentProfiles, publicProfiles } from "./src/db/schema.ts";
-import { eq, and } from "drizzle-orm";
+import { users, tenants, studentProfiles, publicProfiles, notifications, appointments, blockedTimes, plans, studentSchedules, workouts, workoutExercises } from "./src/db/schema.ts";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import crypto from "crypto";
 
 async function startServer() {
@@ -50,7 +50,7 @@ async function startServer() {
       res.json({ user: newUser[0], tenant: newTenant[0] });
     } catch (error: any) {
       console.error(error);
-      res.status(500).json({ error: error.message });
+      require("fs").appendFileSync("server_error.log", error.stack + "\n"); console.error("FULL ERROR", error); res.status(500).json({ error: error.message, stack: error.stack });
     }
   });
 
@@ -120,6 +120,10 @@ async function startServer() {
           location,
           instagram,
           whatsapp,
+          enableBooking: enableBooking !== false,
+          bookingStartTime: bookingStartTime || '07:00',
+          bookingEndTime: bookingEndTime || '20:00',
+          bookingDays: bookingDays || '1,2,3,4,5',
         }).where(eq(publicProfiles.tenantId, tenantId));
       }
       
@@ -184,15 +188,9 @@ async function startServer() {
         for (const b of blocked) {
           if (isOverlapping(slot, b.startTime, b.endTime)) return false;
         }
-        // Check appointments (assume 1 hour duration for simplicity)
-        const slotEnd = (parseInt(slot.split(':')[0]) + 1).toString().padStart(2, '0') + ':00';
+        // Check existing appointments
         for (const app of existingAppointments) {
-          // If appointment overlaps with this slot
-          if (app.status !== 'CANCELLED' && 
-              ((slot >= app.startTime && slot < app.endTime) || 
-               (app.startTime >= slot && app.startTime < slotEnd))) {
-            return false;
-          }
+          if (isOverlapping(slot, app.startTime, app.endTime) && app.status !== 'CANCELLED') return false;
         }
         return true;
       });
@@ -251,7 +249,7 @@ async function startServer() {
       const endHour = (parseInt(time.split(':')[0]) + 1).toString().padStart(2, '0');
       const endTime = `${endHour}:00`;
 
-      await db.insert(appointments).values({
+      const newApp = await db.insert(appointments).values({
         tenantId,
         studentId: userId,
         date,
@@ -259,6 +257,15 @@ async function startServer() {
         endTime,
         notes: `Consulta via Página Pública${notes ? ': ' + notes : ''}`,
         status: 'SCHEDULED'
+      }).returning();
+
+      // Create notification
+      await db.insert(notifications).values({
+        tenantId,
+        title: 'Novo Agendamento',
+        message: `${name} agendou uma consulta para ${date} às ${time}.`,
+        type: 'NEW_BOOKING',
+        relatedId: newApp[0].id
       });
 
       res.json({ message: "Consulta agendada com sucesso!" });
@@ -268,7 +275,70 @@ async function startServer() {
     }
   });
 
-  app.get("/api/p/:slug", async (req, res) => {
+  
+  app.get("/api/plans", requireAuth, async (req: AuthRequest, res) => {
+    try {
+      if (!req.dbUser) return res.status(401).json({ error: "Unauthorized" });
+      const tenantId = req.dbUser.tenantId;
+      
+      const tenantPlans = await db.select().from(plans).where(eq(plans.tenantId, tenantId)).orderBy(plans.id);
+      res.json(tenantPlans);
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  
+  app.put("/api/plans", requireAuth, async (req: AuthRequest, res) => {
+    try {
+      if (!req.dbUser) return res.status(401).json({ error: "Unauthorized" });
+      const tenantId = req.dbUser.tenantId;
+      const { plans: updatedPlans } = req.body;
+      
+      if (!Array.isArray(updatedPlans)) {
+         return res.status(400).json({ error: "Invalid plans payload" });
+      }
+
+      // Upsert plans
+      const existingPlans = await db.select().from(plans).where(eq(plans.tenantId, tenantId));
+      
+      for (const p of updatedPlans) {
+        if (p.id && existingPlans.find(ep => ep.id === p.id)) {
+          // Update
+          await db.update(plans).set({
+            frequency: p.frequency,
+            price: p.price,
+            description: p.description,
+            popular: p.popular
+          }).where(and(eq(plans.id, p.id), eq(plans.tenantId, tenantId)));
+        } else {
+          // Insert
+          await db.insert(plans).values({
+            tenantId,
+            frequency: p.frequency,
+            price: p.price,
+            description: p.description,
+            popular: p.popular
+          });
+        }
+      }
+      
+      // Delete removed plans
+      const updatedIds = updatedPlans.filter(p => p.id).map(p => p.id);
+      for (const ep of existingPlans) {
+        if (!updatedIds.includes(ep.id)) {
+          await db.delete(plans).where(and(eq(plans.id, ep.id), eq(plans.tenantId, tenantId)));
+        }
+      }
+      
+      res.json({ message: "Planos atualizados" });
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+app.get("/api/p/:slug", async (req, res) => {
     try {
       const { slug } = req.params;
       const profile = await db.select({
@@ -287,11 +357,94 @@ async function startServer() {
         return res.status(404).json({ error: "Profile not found" });
       }
       
+      const tenantPlans = await db.select().from(plans).where(eq(plans.tenantId, profile[0].profile.tenantId)).orderBy(plans.id);
+
       res.json({
         name: profile[0].user.name,
         photoUrl: profile[0].user.photoUrl,
+        plans: tenantPlans,
         ...profile[0].profile
       });
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+
+  // Notifications API
+  app.get("/api/notifications", requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const tenantId = req.dbUser.tenantId;
+      const notifs = await db.select().from(notifications)
+        .where(eq(notifications.tenantId, tenantId))
+        .orderBy(desc(notifications.createdAt))
+        .limit(20);
+      res.json(notifs);
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+
+  app.put("/api/notifications/:id/confirm", requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const tenantId = req.dbUser.tenantId;
+      
+      const notif = await db.select().from(notifications)
+        .where(and(eq(notifications.id, parseInt(id)), eq(notifications.tenantId, tenantId)))
+        .limit(1);
+        
+      if (notif.length > 0 && notif[0].relatedId && notif[0].type === 'NEW_BOOKING') {
+        // Update appointment status
+        await db.update(appointments)
+          .set({ status: 'CONFIRMED' })
+          .where(and(eq(appointments.id, notif[0].relatedId), eq(appointments.tenantId, tenantId)));
+          
+        // Mark notification as read and updated message
+        await db.update(notifications)
+          .set({ 
+            read: true,
+            message: notif[0].message + ' (Confirmado)'
+          })
+          .where(eq(notifications.id, parseInt(id)));
+          
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ error: "Notification or appointment not found" });
+      }
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.put("/api/notifications/:id/read", requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const tenantId = req.dbUser.tenantId;
+      
+      await db.update(notifications)
+        .set({ read: true })
+        .where(and(eq(notifications.id, parseInt(id)), eq(notifications.tenantId, tenantId)));
+        
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+
+  app.get("/api/schedules", requireAuth, async (req: AuthRequest, res) => {
+    try {
+      if (!req.dbUser) return res.status(401).json({ error: "Unauthorized" });
+      const tenantId = req.dbUser.tenantId;
+      
+      const schedules = await db.select().from(studentSchedules).where(eq(studentSchedules.tenantId, tenantId));
+      res.json(schedules);
     } catch (error: any) {
       console.error(error);
       res.status(500).json({ error: error.message });
@@ -318,7 +471,30 @@ async function startServer() {
         .from(users)
         .leftJoin(studentProfiles, eq(studentProfiles.userId, users.id))
         .where(and(eq(users.tenantId, tenantId), eq(users.role, "ALUNO")));
-      res.json(allStudents);
+
+      const allAppointments = await db.select().from(appointments).where(eq(appointments.tenantId, tenantId));
+
+      const studentsWithAttendance = allStudents.map(student => {
+        const studentApps = allAppointments.filter(app => app.studentId === student.id);
+        const pastApps = studentApps.filter(app => {
+          const appDate = new Date(`${app.date}T${app.startTime}:00`);
+          return appDate < new Date() || app.status === 'COMPLETED' || app.status === 'CANCELLED';
+        });
+        
+        let attendanceRate = null;
+        if (pastApps.length > 0) {
+          const completed = pastApps.filter(a => a.status === 'COMPLETED').length;
+          attendanceRate = Math.round((completed / pastApps.length) * 100);
+        }
+
+        return {
+          ...student,
+          attendanceRate,
+          totalSessions: pastApps.length
+        };
+      });
+
+      res.json(studentsWithAttendance);
     } catch (error: any) {
       console.error(error);
       res.status(500).json({ error: error.message });
@@ -335,7 +511,7 @@ async function startServer() {
         return res.status(403).json({ error: "Only PERSONAL can add students" });
       }
 
-      const { name, email, phone, birthDate, gender, profession, emergencyContact, planId, paymentDueDate } = req.body;
+      const { name, email, phone, birthDate, gender, profession, emergencyContact, planId, paymentDueDate, schedules } = req.body;
 
       if (!name || !email) {
         return res.status(400).json({ error: "Name and email are required" });
@@ -364,6 +540,15 @@ async function startServer() {
         planId,
       });
 
+      if (schedules && Array.isArray(schedules) && schedules.length > 0) {
+        await db.insert(studentSchedules).values(schedules.map(s => ({
+          tenantId,
+          studentId: userId,
+          dayOfWeek: s.dayOfWeek,
+          startTime: s.startTime,
+          endTime: s.endTime
+        })));
+      }
       res.json({ message: "Student added successfully", student: newUser[0] });
     } catch (error: any) {
       console.error(error);
@@ -380,7 +565,10 @@ async function startServer() {
       }
 
       const studentId = parseInt(req.params.id);
-      const { name, email, phone, planId, paymentDueDate } = req.body;
+      if (isNaN(studentId)) return res.status(400).json({ error: "Invalid student ID" });
+      if (isNaN(studentId)) return res.status(400).json({ error: "Invalid student ID" });
+      if (isNaN(studentId)) return res.status(400).json({ error: "Invalid student ID" });
+      const { name, email, phone, planId, paymentDueDate, schedules } = req.body;
 
       // Verify student belongs to this tenant
       const existingStudent = await db.select().from(users).where(and(eq(users.id, studentId), eq(users.tenantId, tenantId)));
@@ -411,7 +599,64 @@ async function startServer() {
         });
       }
 
+            if (schedules && Array.isArray(schedules)) {
+        await db.delete(studentSchedules).where(eq(studentSchedules.studentId, studentId));
+        if (schedules.length > 0) {
+          await db.insert(studentSchedules).values(schedules.map(s => ({
+            tenantId,
+            studentId,
+            dayOfWeek: s.dayOfWeek,
+            startTime: s.startTime,
+            endTime: s.endTime
+          })));
+        }
+      }
       res.json({ message: "Student updated successfully" });
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  
+  app.delete("/api/students/:id", requireAuth, async (req: AuthRequest, res) => {
+    try {
+      if (!req.dbUser) return res.status(401).json({ error: "Unauthorized" });
+      const tenantId = req.dbUser.tenantId;
+      if (req.dbUser.role !== "PERSONAL" && req.dbUser.role !== "SUPER_ADMIN") {
+        return res.status(403).json({ error: "Only PERSONAL can delete students" });
+      }
+
+      const studentId = parseInt(req.params.id);
+
+      // Verify student belongs to this tenant
+      const existingStudent = await db.select().from(users).where(and(eq(users.id, studentId), eq(users.tenantId, tenantId)));
+      if (existingStudent.length === 0) {
+        return res.status(404).json({ error: "Student not found" });
+      }
+
+      // Dynamic imports for related schemas
+      
+
+      // Delete dependencies
+      // 1. Workout Exercises
+      const studentWorkouts = await db.select().from(workouts).where(eq(workouts.studentId, studentId));
+      if (studentWorkouts.length > 0) {
+        const workoutIds = studentWorkouts.map(w => w.id);
+        await db.delete(workoutExercises).where(inArray(workoutExercises.workoutId, workoutIds));
+      }
+      // 2. Workouts
+      await db.delete(workouts).where(eq(workouts.studentId, studentId));
+      // 3. Appointments
+      await db.delete(appointments).where(eq(appointments.studentId, studentId));
+      // 4. Schedules
+      await db.delete(studentSchedules).where(eq(studentSchedules.studentId, studentId));
+      // 5. Profiles
+      await db.delete(studentProfiles).where(eq(studentProfiles.userId, studentId));
+      // 6. User
+      await db.delete(users).where(eq(users.id, studentId));
+
+      res.json({ message: "Student deleted successfully" });
     } catch (error: any) {
       console.error(error);
       res.status(500).json({ error: error.message });

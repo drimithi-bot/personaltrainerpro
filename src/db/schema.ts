@@ -162,3 +162,50 @@ export const publicProfiles = pgTable('public_profiles', {
   bookingDays: text('booking_days').default('1,2,3,4,5'),
   createdAt: timestamp('created_at').defaultNow(),
 });
+
+export const notifications = pgTable('notifications', {
+  id: serial('id').primaryKey(),
+  tenantId: integer('tenant_id').references(() => tenants.id).notNull(),
+  title: text('title').notNull(),
+  message: text('message').notNull(),
+  read: boolean('read').default(false),
+  type: text('type').default('INFO'),
+  relatedId: integer('related_id'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const plans = pgTable('plans', {
+  id: serial('id').primaryKey(),
+  tenantId: integer('tenant_id').references(() => tenants.id).notNull(),
+  frequency: text('frequency').notNull(),
+  price: text('price').notNull(),
+  description: text('description'),
+  popular: boolean('popular').default(false),
+});
+
+export const plansRelations = relations(plans, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [plans.tenantId],
+    references: [tenants.id],
+  })
+}));
+
+export const studentSchedules = pgTable('student_schedules', {
+  id: serial('id').primaryKey(),
+  tenantId: integer('tenant_id').references(() => tenants.id).notNull(),
+  studentId: integer('student_id').references(() => users.id).notNull(),
+  dayOfWeek: integer('day_of_week').notNull(), // 0 = Sunday, 1 = Monday...
+  startTime: text('start_time').notNull(), // HH:MM
+  endTime: text('end_time').notNull(), // HH:MM
+});
+
+export const studentSchedulesRelations = relations(studentSchedules, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [studentSchedules.tenantId],
+    references: [tenants.id],
+  }),
+  student: one(users, {
+    fields: [studentSchedules.studentId],
+    references: [users.id],
+  }),
+}));
