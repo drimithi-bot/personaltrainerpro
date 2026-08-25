@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && esbuild src/server/app.ts --bundle --platform=node --format=cjs --packages=external --outfile=api/_app-bundle.cjs",
+    "build": "vite build && esbuild src/server/app.ts --bundle --platform=node --format=esm --packages=external --outfile=api/_app-bundle.mjs",
     "build:local": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
     "preview": "vite preview",

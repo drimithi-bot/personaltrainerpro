@@ -6,4 +6,4 @@ coverage/
 *.log
 .env*
 !.env.example
-api/_app-bundle.cjs
+api/_app-bundle.mjs
