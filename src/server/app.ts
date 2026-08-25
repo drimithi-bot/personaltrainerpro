@@ -47,7 +47,8 @@ export function createApp() {
       res.json({ user: newUser[0], tenant: newTenant[0] });
     } catch (error: any) {
       console.error(error);
-      require("fs").appendFileSync("server_error.log", error.stack + "\n"); console.error("FULL ERROR", error); res.status(500).json({ error: error.message, stack: error.stack });
+      console.error("FULL ERROR", error);
+      res.status(500).json({ error: error.message });
     }
   });
 
