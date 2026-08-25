@@ -1,5 +1,10 @@
 import { relations } from 'drizzle-orm';
-import { pgTable, serial, text, timestamp, integer, boolean } from 'drizzle-orm/pg-core';
+import { pgSchema, serial, text, timestamp, integer, boolean } from 'drizzle-orm/pg-core';
+
+// Dedicated schema so this app's tables never collide with other apps
+// sharing the same Supabase Postgres instance (e.g. the Semijoias platform).
+const appSchema = pgSchema('personaltrainerpro');
+const pgTable = appSchema.table.bind(appSchema);
 
 export const tenants = pgTable('tenants', {
   id: serial('id').primaryKey(),
