@@ -13,6 +13,8 @@ export function PublicProfileSettings() {
   const [bookingStartTime, setBookingStartTime] = useState('07:00');
   const [bookingEndTime, setBookingEndTime] = useState('20:00');
   const [bookingDays, setBookingDays] = useState<number[]>([1,2,3,4,5]);
+  const [heroImageUrl, setHeroImageUrl] = useState('');
+  const [heroImagePosition, setHeroImagePosition] = useState('background');
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [message, setMessage] = useState({ text: '', type: '' });
@@ -37,6 +39,8 @@ export function PublicProfileSettings() {
           setBookingStartTime(data.bookingStartTime || '07:00');
           setBookingEndTime(data.bookingEndTime || '20:00');
           setBookingDays(data.bookingDays ? data.bookingDays.split(',').map(Number) : [1,2,3,4,5]);
+          setHeroImageUrl(data.heroImageUrl || '');
+          setHeroImagePosition(data.heroImagePosition || 'background');
         }
       } catch (error) {
         console.error(error);
@@ -62,7 +66,7 @@ export function PublicProfileSettings() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          slug, bio, location, instagram, whatsapp, enableBooking, bookingStartTime, bookingEndTime, bookingDays: bookingDays.join(',')
+          slug, bio, location, instagram, whatsapp, enableBooking, bookingStartTime, bookingEndTime, bookingDays: bookingDays.join(','), heroImageUrl, heroImagePosition
         })
       });
 
@@ -152,9 +156,50 @@ export function PublicProfileSettings() {
             className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-800 dark:text-white"
           />
         </div>
+        
+        <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
+          <h4 className="font-bold text-slate-900 dark:text-white mb-4">Aparência da Página</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">URL da Imagem de Fundo/Destaque</label>
+              <input 
+                type="url" 
+                value={heroImageUrl}
+                onChange={(e) => setHeroImageUrl(e.target.value)}
+                placeholder="https://exemplo.com/foto.jpg"
+                className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-800 dark:text-white"
+              />
+              {heroImageUrl && (
+                <div className="mt-3">
+                  <span className="block text-xs text-slate-500 mb-1">Pré-visualização:</span>
+                  <div className="relative w-full h-32 bg-slate-100 dark:bg-slate-800 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 flex items-center justify-center text-center p-4">
+                    <span className="absolute inset-0 flex flex-col items-center justify-center text-rose-500 text-xs font-medium z-0">
+                      <span>❌ Erro ao carregar</span>
+                      <span className="text-slate-500 font-normal mt-1">O link não é uma imagem válida.</span>
+                      <span className="text-slate-500 font-normal text-[10px]">Tente abrir a imagem original e copiar o link que termine em .jpg, .png etc.</span>
+                    </span>
+                    <img src={heroImageUrl} alt="Preview" className="relative z-10 w-full h-full object-cover bg-slate-100 dark:bg-slate-800" onError={(e) => { e.currentTarget.classList.add('opacity-0'); }} onLoad={(e) => { e.currentTarget.classList.remove('opacity-0'); }} />
+                  </div>
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Posição da Imagem</label>
+              <select 
+                value={heroImagePosition}
+                onChange={(e) => setHeroImagePosition(e.target.value)}
+                className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-800 dark:text-white"
+              >
+                <option value="background">Preencher todo o Fundo</option>
+                <option value="left">Metade Esquerda (Lado a Lado)</option>
+                <option value="right">Metade Direita (Lado a Lado)</option>
+              </select>
+            </div>
+          </div>
+        </div>
 
         <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
-          <h4 className="font-bold text-slate-900 dark:text-white mb-4">Agendamento de Consultas</h4>
+          <h4 className="font-bold text-slate-900 dark:text-white mb-4">Agendamento de Avaliações</h4>
           
           <label className="flex items-center gap-3 mb-4 cursor-pointer">
             <div className="relative">

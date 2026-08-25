@@ -94,7 +94,7 @@ async function startServer() {
     try {
       if (!req.dbUser) return res.status(401).json({ error: "Unauthorized" });
       const tenantId = req.dbUser.tenantId;
-      const { slug, bio, location, instagram, whatsapp, enableBooking, bookingStartTime, bookingEndTime, bookingDays } = req.body;
+      const { slug, bio, location, instagram, whatsapp, enableBooking, bookingStartTime, bookingEndTime, bookingDays, heroImageUrl, heroImagePosition } = req.body;
       
       if (!slug) return res.status(400).json({ error: "Slug is required" });
 
@@ -102,6 +102,8 @@ async function startServer() {
       
       if (existing.length === 0) {
         await db.insert(publicProfiles).values({
+          heroImageUrl,
+          heroImagePosition,
           tenantId,
           slug,
           bio,
@@ -115,6 +117,8 @@ async function startServer() {
         });
       } else {
         await db.update(publicProfiles).set({
+          heroImageUrl,
+          heroImagePosition,
           slug,
           bio,
           location,

@@ -1,20 +1,19 @@
 const fs = require('fs');
+let code = fs.readFileSync('server.ts', 'utf8');
 
-let serverCode = fs.readFileSync('server.ts', 'utf8');
-
-serverCode = serverCode.replace(
-  'import { users, tenants, studentProfiles, publicProfiles, notifications, appointments, blockedTimes, plans, studentSchedules } from "./src/db/schema.ts";',
-  'import { users, tenants, studentProfiles, publicProfiles, notifications, appointments, blockedTimes, plans, studentSchedules, workouts, workoutExercises } from "./src/db/schema.ts";'
+code = code.replace(
+  "const { slug, bio, location, instagram, whatsapp, enableBooking, bookingStartTime, bookingEndTime, bookingDays } = req.body;",
+  "const { slug, bio, location, instagram, whatsapp, enableBooking, bookingStartTime, bookingEndTime, bookingDays, heroImageUrl, heroImagePosition } = req.body;"
 );
 
-serverCode = serverCode.replace(
-  'import { eq, and, desc } from "drizzle-orm";',
-  'import { eq, and, desc, inArray } from "drizzle-orm";'
+code = code.replace(
+  "await db.insert(publicProfiles).values({",
+  "await db.insert(publicProfiles).values({\n          heroImageUrl,\n          heroImagePosition,"
 );
 
-serverCode = serverCode.replace(
-  'const { workouts, workoutExercises } = await import("./src/db/schema.ts");\n      const { inArray } = await import("drizzle-orm");',
-  ''
+code = code.replace(
+  "await db.update(publicProfiles).set({",
+  "await db.update(publicProfiles).set({\n          heroImageUrl,\n          heroImagePosition,"
 );
 
-fs.writeFileSync('server.ts', serverCode);
+fs.writeFileSync('server.ts', code);

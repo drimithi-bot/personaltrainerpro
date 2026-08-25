@@ -1,0 +1,9 @@
+const fs = require('fs');
+let code = fs.readFileSync('src/components/PublicProfileSettings.tsx', 'utf8');
+
+code = code.replace(
+  'className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-800 dark:text-white"\n              />\n            </div>',
+  'className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-800 dark:text-white"\n              />\n              {heroImageUrl && (\n                <div className="mt-3">\n                  <span className="block text-xs text-slate-500 mb-1">Pré-visualização:</span>\n                  <div className="relative w-full h-32 bg-slate-100 dark:bg-slate-800 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 flex items-center justify-center text-center p-4">\n                    <span className="absolute inset-0 flex flex-col items-center justify-center text-rose-500 text-xs font-medium z-0">\n                      <span>❌ Erro ao carregar</span>\n                      <span className="text-slate-500 font-normal mt-1">O link não é uma imagem válida.</span>\n                      <span className="text-slate-500 font-normal text-[10px]">Tente abrir a imagem original e copiar o link que termine em .jpg, .png etc.</span>\n                    </span>\n                    <img src={heroImageUrl} alt="Preview" className="relative z-10 w-full h-full object-cover bg-slate-100 dark:bg-slate-800" onError={(e) => { e.currentTarget.classList.add(\'opacity-0\'); }} onLoad={(e) => { e.currentTarget.classList.remove(\'opacity-0\'); }} />\n                  </div>\n                </div>\n              )}\n            </div>'
+);
+
+fs.writeFileSync('src/components/PublicProfileSettings.tsx', code);

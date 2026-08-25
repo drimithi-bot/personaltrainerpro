@@ -47,14 +47,6 @@ export function SettingsView() {
             <Layout className="w-5 h-5" />
             Página Pública
           </button>
-          <button className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-400 font-bold w-full text-left transition-colors">
-            <Bell className="w-5 h-5 text-slate-400" />
-            Notificações
-          </button>
-          <button className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-400 font-bold w-full text-left transition-colors">
-            <Shield className="w-5 h-5 text-slate-400" />
-            Segurança
-          </button>
         </div>
         
         <div className="flex-1 flex flex-col gap-6 max-w-2xl">

@@ -160,6 +160,8 @@ export const publicProfiles = pgTable('public_profiles', {
   bookingStartTime: text('booking_start_time').default('07:00'),
   bookingEndTime: text('booking_end_time').default('20:00'),
   bookingDays: text('booking_days').default('1,2,3,4,5'),
+  heroImageUrl: text('hero_image_url'),
+  heroImagePosition: text('hero_image_position').default('background'),
   createdAt: timestamp('created_at').defaultNow(),
 });
 

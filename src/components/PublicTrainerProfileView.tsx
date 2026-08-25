@@ -93,7 +93,7 @@ export function PublicTrainerProfileView({ username }: { username: string }) {
       
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || 'Erro ao agendar consulta');
+        throw new Error(data.error || 'Erro ao agendar avaliação');
       }
       
       setBookingStatus('success');
@@ -131,41 +131,58 @@ export function PublicTrainerProfileView({ username }: { username: string }) {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-900">
       {/* Hero Section */}
-      <header className="bg-slate-900 text-white pt-20 pb-32 px-6 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-500 via-transparent to-transparent"></div>
-        <div className="max-w-4xl mx-auto relative z-10 flex flex-col items-center text-center">
-          <div className="w-24 h-24 bg-indigo-500 rounded-full flex items-center justify-center text-4xl font-bold mb-6 border-4 border-slate-800 shadow-xl overflow-hidden">
-            {profile?.photoUrl ? (
-               <img src={profile.photoUrl} alt={trainerName} className="w-full h-full object-cover" />
-            ) : (
-               trainerName.charAt(0)
-            )}
+      <header className="bg-slate-900 text-white relative overflow-hidden">
+        {profile?.heroImageUrl && profile?.heroImagePosition === 'background' && (
+           <div className="absolute inset-0 z-0">
+             <img src={profile.heroImageUrl} className="w-full h-full object-cover opacity-30" alt="Background" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+             <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent"></div>
+           </div>
+        )}
+        {(!profile?.heroImageUrl || profile?.heroImagePosition !== 'background') && (
+           <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-500 via-transparent to-transparent z-0"></div>
+        )}
+        
+        <div className={`max-w-6xl mx-auto relative z-10 px-6 pt-20 pb-32 flex flex-col md:flex-row ${profile?.heroImagePosition === 'left' ? 'md:flex-row-reverse' : ''} items-center justify-center gap-12`}>
+          <div className={`flex flex-col items-center text-center ${profile?.heroImageUrl && (profile?.heroImagePosition === 'left' || profile?.heroImagePosition === 'right') ? 'md:items-start md:text-left flex-1' : 'max-w-4xl w-full'}`}>
+            <div className="w-24 h-24 bg-indigo-500 rounded-full flex items-center justify-center text-4xl font-bold mb-6 border-4 border-slate-800 shadow-xl overflow-hidden">
+              {profile?.photoUrl ? (
+                 <img src={profile.photoUrl} alt={trainerName} className="w-full h-full object-cover" />
+              ) : (
+                 trainerName.charAt(0)
+              )}
+            </div>
+            <h1 className="text-4xl md:text-5xl font-bold mb-4 tracking-tight">
+              Treine com <span className="text-indigo-400">{trainerName}</span>
+            </h1>
+            <p className="text-lg md:text-xl text-slate-300 max-w-2xl mb-8 leading-relaxed">
+              {profile?.bio || "Especialista em hipertrofia e emagrecimento. Transforme seu corpo e sua saúde com uma metodologia comprovada e acompanhamento de perto."}
+            </p>
+            
+            <div className={`flex flex-wrap gap-4 text-sm font-medium ${profile?.heroImageUrl && (profile?.heroImagePosition === 'left' || profile?.heroImagePosition === 'right') ? 'justify-center md:justify-start' : 'justify-center'}`}>
+              {(profile?.location || "São Paulo, SP") && (
+                <span className="flex items-center gap-2 bg-slate-800/50 backdrop-blur px-4 py-2 rounded-full border border-slate-700">
+                  <MapPin className="w-4 h-4 text-indigo-400" />
+                  {profile?.location || "São Paulo, SP"}
+                </span>
+              )}
+              {profile?.instagram && (
+                <span className="flex items-center gap-2 bg-slate-800/50 backdrop-blur px-4 py-2 rounded-full border border-slate-700">
+                  <Instagram className="w-4 h-4 text-pink-400" />
+                  @{profile.instagram}
+                </span>
+              )}
+              <span className="flex items-center gap-2 bg-slate-800/50 backdrop-blur px-4 py-2 rounded-full border border-slate-700">
+                <Star className="w-4 h-4 text-amber-400" />
+                5.0 Avaliações
+              </span>
+            </div>
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold mb-4 tracking-tight">
-            Treine com <span className="text-indigo-400">{trainerName}</span>
-          </h1>
-          <p className="text-lg md:text-xl text-slate-400 max-w-2xl mb-8 leading-relaxed">
-            {profile?.bio || "Especialista em hipertrofia e emagrecimento. Transforme seu corpo e sua saúde com uma metodologia comprovada e acompanhamento de perto."}
-          </p>
           
-          <div className="flex flex-wrap justify-center gap-4 text-sm font-medium">
-            {(profile?.location || "São Paulo, SP") && (
-              <span className="flex items-center gap-2 bg-slate-800/50 backdrop-blur px-4 py-2 rounded-full border border-slate-700">
-                <MapPin className="w-4 h-4 text-indigo-400" />
-                {profile?.location || "São Paulo, SP"}
-              </span>
-            )}
-            {profile?.instagram && (
-              <span className="flex items-center gap-2 bg-slate-800/50 backdrop-blur px-4 py-2 rounded-full border border-slate-700">
-                <Instagram className="w-4 h-4 text-pink-400" />
-                @{profile.instagram}
-              </span>
-            )}
-            <span className="flex items-center gap-2 bg-slate-800/50 backdrop-blur px-4 py-2 rounded-full border border-slate-700">
-              <Star className="w-4 h-4 text-amber-400" />
-              5.0 Avaliações
-            </span>
-          </div>
+          {profile?.heroImageUrl && (profile?.heroImagePosition === 'left' || profile?.heroImagePosition === 'right') && (
+            <div className="flex-1 w-full max-w-md hidden md:block">
+              <img src={profile.heroImageUrl} className="w-full h-auto rounded-3xl shadow-2xl object-cover aspect-[4/5] border border-slate-700/50 bg-slate-800" alt="Trainer" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+            </div>
+          )}
         </div>
       </header>
 
@@ -214,7 +231,7 @@ export function PublicTrainerProfileView({ username }: { username: string }) {
         <div className="bg-white rounded-3xl p-8 md:p-10 shadow-sm border border-slate-100 mb-10">
           <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
             <CalendarIcon className="w-6 h-6 text-indigo-600" />
-            Agendar Consulta
+            Agendar Avaliação
           </h2>
           <p className="text-slate-500 mb-6">Escolha o melhor dia e horário para conversarmos sobre seus objetivos.</p>
           
@@ -223,7 +240,7 @@ export function PublicTrainerProfileView({ username }: { username: string }) {
               <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
                 <CheckCircle2 className="w-8 h-8" />
               </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-2">Consulta Agendada!</h3>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">Avaliação Agendada!</h3>
               <p className="text-slate-600">Em breve entrarei em contato pelo WhatsApp ou E-mail para confirmarmos. Até lá!</p>
               <button 
                 onClick={() => {
@@ -240,7 +257,7 @@ export function PublicTrainerProfileView({ username }: { username: string }) {
             <div className="grid md:grid-cols-2 gap-8">
               {/* Date & Time Selection */}
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Data da Consulta</label>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Data da Avaliação</label>
                 <input 
                   type="date"
                   min={new Date().toISOString().split('T')[0]}
